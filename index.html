@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mandacaru Digital - Sketch</title>
+    
+    <!-- Fontes Hand-Drawn -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        kalam: ['Kalam', 'cursive'],
+                        patrick: ['"Patrick Hand"', 'cursive'],
+                    },
+                    colors: {
+                        paper: '#fdfbf7',     // Fundo de caderno
+                        ink: '#2d2d2d',       // Lápis grafite forte (nunca pure black)
+                        muted: '#e5e0d8',     // Papel envelhecido/sombra
+                        marker: '#ff4d4d',    // Canetão vermelho de correção
+                        pen: '#2d5da1',       // Caneta esferográfica azul
+                        postit: '#fff9c4'     // Amarelo post-it
+                    },
+                    boxShadow: {
+                        // Sombras duras estilo recorte de papel (sem desfoque)
+                        'hard': '4px 4px 0px 0px #2d2d2d',
+                        'hard-hover': '2px 2px 0px 0px #2d2d2d',
+                        'hard-active': '0px 0px 0px 0px #2d2d2d',
+                        'hard-sm': '2px 2px 0px 0px #2d2d2d',
+                    },
+                    borderRadius: {
+                        // Bordas irregulares baseadas em SVG/CSS
+                        'wobbly': '255px 15px 225px 15px / 15px 225px 15px 255px',
+                        'wobbly-md': '15px 225px 15px 255px / 255px 15px 225px 15px',
+                        'wobbly-sm': '225px 15px 255px 15px / 15px 255px 15px 225px',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Patrick Hand', cursive;
+            background-color: #fdfbf7;
+            /* Textura de papel com pontilhados */
+            background-image: radial-gradient(#e5e0d8 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+            color: #2d2d2d;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        h1, h2, h3, h4, h5, h6, .font-kalam {
+            font-family: 'Kalam', cursive;
+            font-weight: 700;
+        }
+
+        /* Container que parece uma prancheta de rascunhos */
+        #app-container {
+            width: 100%;
+            max-width: 420px;
+            height: 100vh;
+            max-height: 900px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #fdfbf7;
+        }
+
+        @media (min-width: 421px) {
+            #app-container {
+                height: 90vh;
+                border: 4px solid #2d2d2d;
+                border-radius: 15px 225px 15px 255px / 255px 15px 225px 15px; /* Wobbly */
+                box-shadow: 12px 12px 0px 0px rgba(45, 45, 45, 0.1);
+                /* Fundo emula folha pautada leve */
+                background-image: repeating-linear-gradient(transparent, transparent 31px, #e5e0d8 31px, #e5e0d8 32px);
+            }
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            height: 100%;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        
+        .screen::-webkit-scrollbar { display: none; }
+        .screen { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* Animação de transição mais "rabiscada" */
+        .fade-in {
+            animation: sketchyFade 0.3s ease-out forwards;
+        }
+
+        @keyframes sketchyFade {
+            0% { opacity: 0; transform: scale(0.95) rotate(-2deg); }
+            50% { opacity: 0.8; transform: scale(1.02) rotate(1deg); }
+            100% { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+
+        /* Elementos Decorativos: Fita adesiva e percevejo */
+        .tape {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-3deg);
+            width: 70px;
+            height: 24px;
+            background-color: rgba(229, 224, 216, 0.8);
+            border: 1px solid rgba(45, 45, 45, 0.2);
+            z-index: 10;
+        }
+
+        .tape-alt {
+            transform: translateX(-50%) rotate(4deg);
+            width: 50px;
+        }
+
+        .tack {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            width: 14px;
+            height: 14px;
+            background-color: #ff4d4d;
+            border-radius: 50%;
+            border: 2px solid #2d2d2d;
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        /* Toasts */
+        .toast-enter { animation: slideDownSketch 0.4s ease-out forwards; }
+        .toast-exit { animation: slideUpSketch 0.3s ease-in forwards; }
+        @keyframes slideDownSketch {
+            from { transform: translate(-50%, -150%) rotate(-5deg); opacity: 0; }
+            to { transform: translate(-50%, 0) rotate(1deg); opacity: 1; }
+        }
+        @keyframes slideUpSketch {
+            from { transform: translate(-50%, 0) rotate(1deg); opacity: 1; }
+            to { transform: translate(-50%, -150%) rotate(5deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        
+        <!-- Toast Notification: Estilo Post-it -->
+        <div id="toast" class="fixed top-6 left-1/2 w-11/12 max-w-[340px] bg-postit text-ink px-5 py-4 rounded-wobbly-sm shadow-hard border-[3px] border-ink flex items-center gap-4 z-50 opacity-0 pointer-events-none transform -translate-y-full -translate-x-1/2 rotate-1">
+            <div class="tape tape-alt"></div>
+            <div class="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center bg-white shrink-0">
+                <i data-feather="check" class="w-5 h-5 text-ink"></i>
+            </div>
+            <span id="toast-message" class="font-kalam font-bold text-lg leading-tight mt-1"></span>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TELA 1: LOGIN / INICIAL                    -->
+        <!-- ========================================== -->
+        <div id="screen-login" class="screen active fade-in px-6 py-12 items-center justify-center relative">
+            
+            <div class="w-full flex flex-col items-center z-10 space-y-16">
+                
+                <!-- Orbe Central & Títulos (Estilo Rabisco) -->
+                <div class="text-center flex flex-col items-center relative">
+                    <!-- Detalhe decorativo (risquinhos) -->
+                    <div class="absolute -top-10 -right-8 opacity-60">
+                        <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 50L80 50M50 20L50 80M30 30L70 70M70 30L30 70" stroke="#2d2d2d" stroke-width="4" stroke-linecap="round" class="animate-pulse"/>
+                        </svg>
+                    </div>
+
+                    <div class="w-28 h-28 bg-postit border-[4px] border-ink rounded-wobbly flex items-center justify-center shadow-hard mb-6 -rotate-3">
+                        <i data-feather="sun" class="w-14 h-14 text-ink"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-5xl font-kalam font-bold text-ink leading-none rotate-1">
+                            Mandacaru<br>
+                            <span class="text-marker inline-block -rotate-2 mt-1">Digital</span>
+                        </h1>
+                        <p class="text-ink text-xl mt-4 max-w-[250px] mx-auto border-t-2 border-dashed border-ink/40 pt-3">
+                            Conectando Talentos Técnicos e Negócios Locais
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Botões (Hand-Drawn interactives) -->
+                <div class="w-full space-y-6">
+                    <button onclick="window.navigateTo('screen-empreendedor')" class="w-full group relative flex items-center bg-white border-[3px] border-ink text-ink h-24 px-5 rounded-wobbly shadow-hard transition-all duration-100 hover:bg-marker hover:text-white hover:shadow-hard-hover hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px]">
+                        <div class="w-12 h-12 border-2 border-current rounded-full flex items-center justify-center mr-4 -rotate-3 group-hover:bg-white/20">
+                            <i data-feather="briefcase" class="w-6 h-6"></i>
+                        </div>
+                        <div class="text-left flex-1 mt-1">
+                            <span class="block font-kalam font-bold text-2xl leading-none">Sou Empreendedor</span>
+                            <span class="block font-patrick text-lg mt-1 opacity-90">Preciso de ajuda digital</span>
+                        </div>
+                    </button>
+
+                    <button onclick="window.navigateTo('screen-aluno')" class="w-full group relative flex items-center bg-white border-[3px] border-ink text-ink h-24 px-5 rounded-wobbly-md shadow-hard transition-all duration-100 hover:bg-pen hover:text-white hover:shadow-hard-hover hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] rotate-1">
+                        <div class="w-12 h-12 border-2 border-current rounded-full flex items-center justify-center mr-4 rotate-6 group-hover:bg-white/20">
+                            <i data-feather="code" class="w-6 h-6"></i>
+                        </div>
+                        <div class="text-left flex-1 mt-1">
+                            <span class="block font-kalam font-bold text-2xl leading-none">Sou Aluno Técnico</span>
+                            <span class="block font-patrick text-lg mt-1 opacity-90">Quero assumir projetos</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TELA 2: EMPREENDEDOR                       -->
+        <!-- ========================================== -->
+        <div id="screen-empreendedor" class="screen relative pb-12 bg-paper">
+            
+            <!-- Sketchy Header -->
+            <header class="sticky top-0 z-20 px-5 py-6 flex items-center bg-paper/90 backdrop-blur-sm border-b-[3px] border-ink/20 border-dashed">
+                <button onclick="window.navigateTo('screen-login')" class="w-12 h-12 flex items-center justify-center text-ink bg-white border-[3px] border-ink rounded-wobbly shadow-hard-sm transition-all active:shadow-none active:translate-x-[2px] active:translate-y-[2px] -rotate-2 hover:bg-muted">
+                    <i data-feather="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <div class="ml-4 mt-1">
+                    <h2 class="font-kalam font-bold text-ink text-2xl leading-none">Área Local</h2>
+                    <span class="font-patrick text-lg text-ink/70">Peça ajuda tecnológica</span>
+                </div>
+            </header>
+
+            <div class="p-5 space-y-10 mt-2">
+                
+                <!-- Card de Formulário (Papel com fita) -->
+                <div class="bg-white p-7 rounded-wobbly-sm shadow-hard border-[3px] border-ink relative rotate-1">
+                    <div class="tape"></div>
+                    
+                    <div class="flex items-center gap-3 mb-6 relative z-10 border-b-2 border-dashed border-ink pb-3">
+                        <div class="w-8 h-8 rounded-full border-2 border-ink flex items-center justify-center -rotate-6">
+                            <i data-feather="plus" class="w-5 h-5"></i>
+                        </div>
+                        <h3 class="font-kalam font-bold text-2xl text-ink mt-1">Novo Pedido</h3>
+                    </div>
+                    
+                    <form id="form-pedido" class="space-y-6 relative z-10">
+                        <div>
+                            <label for="negocio" class="block text-xl font-bold text-ink mb-1 ml-1">Nome do seu Negócio:</label>
+                            <input type="text" id="negocio" required placeholder="Ex: Tapiocaria da Dona Maria" class="w-full h-14 px-4 rounded-wobbly border-[3px] border-ink bg-white text-ink text-lg shadow-hard-sm placeholder:text-ink/40 focus:bg-postit focus:outline-none focus:ring-0 focus:border-pen transition-colors">
+                        </div>
+                        <div>
+                            <label for="pedido" class="block text-xl font-bold text-ink mb-1 ml-1">Do que você precisa?</label>
+                            <textarea id="pedido" required rows="3" placeholder="Ex: Preciso de um cardápio online com QR Code..." class="w-full py-3 px-4 rounded-wobbly-md border-[3px] border-ink bg-white text-ink text-lg shadow-hard-sm placeholder:text-ink/40 focus:bg-postit focus:outline-none focus:ring-0 focus:border-pen transition-colors resize-none"></textarea>
+                        </div>
+                        
+                        <!-- Botão Scribble -->
+                        <button type="submit" class="w-full bg-white border-[3px] border-ink text-ink font-kalam font-bold text-2xl h-16 rounded-wobbly shadow-hard transition-all hover:bg-pen hover:text-white hover:shadow-hard-hover hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] flex items-center justify-center gap-3 mt-4 -rotate-1">
+                            <i data-feather="send" class="w-5 h-5"></i>
+                            Pedir Ajuda!
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Lista de Pedidos -->
+                <div>
+                    <h3 class="font-kalam font-bold text-3xl text-ink mb-5 ml-2">Meus Pedidos</h3>
+                    <div id="lista-empreendedor" class="space-y-6">
+                        <!-- Renderizado via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TELA 3: ALUNO TÉCNICO                      -->
+        <!-- ========================================== -->
+        <div id="screen-aluno" class="screen relative pb-12 bg-paper">
+            
+            <header class="sticky top-0 z-20 px-5 py-6 flex items-center bg-paper/90 backdrop-blur-sm border-b-[3px] border-ink/20 border-dashed">
+                <button onclick="window.navigateTo('screen-login')" class="w-12 h-12 flex items-center justify-center text-ink bg-white border-[3px] border-ink rounded-wobbly shadow-hard-sm transition-all active:shadow-none active:translate-x-[2px] active:translate-y-[2px] rotate-2 hover:bg-muted">
+                    <i data-feather="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <div class="ml-4 mt-1">
+                    <h2 class="font-kalam font-bold text-ink text-2xl leading-none">Mural de Oportunidades</h2>
+                    <span class="font-patrick text-lg text-marker underline decoration-wavy">Projetos práticos</span>
+                </div>
+            </header>
+
+            <div class="p-5 space-y-8 mt-2" id="feed-aluno">
+                <!-- Renderizado via JS -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /**
+         * ESTADO DA APLICAÇÃO (STATE)
+         */
+        let demandas = [
+            { 
+                id: 1, 
+                negocio: 'Tapiocaria da Dona Maria', 
+                pedido: 'Criar um cardápio online com QR Code para os clientes acessarem pelo celular.', 
+                status: 'Aberto' 
+            },
+            { 
+                id: 2, 
+                negocio: 'Oficina do João', 
+                pedido: 'Uma planilha automatizada simples para controle de peças.', 
+                status: 'Aberto' 
+            }
+        ];
+
+        document.addEventListener("DOMContentLoaded", () => {
+            feather.replace({ 'stroke-width': 2.5 });
+            renderTelas();
+        });
+
+        window.navigateTo = function(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active', 'fade-in');
+            });
+            
+            const targetScreen = document.getElementById(screenId);
+            if(targetScreen) {
+                targetScreen.classList.add('active', 'fade-in');
+                if(screenId === 'screen-empreendedor' || screenId === 'screen-aluno') {
+                    renderTelas();
+                }
+            }
+        };
+
+        function renderTelas() {
+            renderEmpreendedorList();
+            renderAlunoFeed();
+            feather.replace({ 'stroke-width': 2.5 });
+        }
+
+        // Renderiza a lista do Empreendedor com estética de Post-its e recortes
+        function renderEmpreendedorList() {
+            const container = document.getElementById('lista-empreendedor');
+            container.innerHTML = ''; 
+
+            if(demandas.length === 0) {
+                container.innerHTML = `<p class="font-patrick text-xl text-ink/60 text-center py-8 border-[3px] border-dashed border-ink/20 rounded-wobbly">Nenhum rascunho de pedido ainda.</p>`;
+                return;
+            }
+
+            const demandasInvertidas = [...demandas].reverse();
+
+            demandasInvertidas.forEach((d, index) => {
+                const isAberto = d.status === 'Aberto';
+                // Rotação levemente aleatória para dar naturalidade
+                const rot = index % 2 === 0 ? '-rotate-1' : 'rotate-2';
+                
+                const statusBadge = isAberto 
+                    ? `<span class="border-2 border-ink bg-postit px-3 py-1 rounded-wobbly-md text-ink text-sm font-bold flex items-center gap-1.5 shadow-hard-sm"><i data-feather="clock" class="w-3.5 h-3.5"></i> Aguardando</span>`
+                    : `<span class="border-2 border-ink bg-muted px-3 py-1 rounded-wobbly text-ink text-sm font-bold flex items-center gap-1.5 shadow-hard-sm line-through"><i data-feather="check-circle" class="w-3.5 h-3.5"></i> Assumido</span>`;
+
+                const card = `
+                    <div class="bg-white p-5 rounded-wobbly border-[3px] border-ink shadow-hard ${rot} relative transition-transform hover:rotate-0">
+                        <div class="tack"></div>
+                        <div class="flex justify-between items-start gap-2 mb-3 mt-2 border-b-2 border-ink/20 border-dashed pb-2">
+                            <h4 class="font-kalam font-bold text-ink text-xl leading-tight">${d.negocio}</h4>
+                            ${statusBadge}
+                        </div>
+                        <div class="font-patrick text-ink text-lg leading-snug">
+                            "${d.pedido}"
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+
+        // Renderiza o Feed do Aluno aplicando cards estilo "Mural Escolar"
+        function renderAlunoFeed() {
+            const container = document.getElementById('feed-aluno');
+            container.innerHTML = '';
+
+            const demandasAbertas = demandas.filter(d => d.status === 'Aberto');
+            const demandasFechadas = demandas.filter(d => d.status !== 'Aberto');
+            const todasDemandas = [...demandasAbertas, ...demandasFechadas];
+
+            if(todasDemandas.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white border-[3px] border-ink border-dashed rounded-wobbly p-10 text-center flex flex-col items-center rotate-1">
+                        <i data-feather="coffee" class="w-12 h-12 text-ink/40 mb-4"></i>
+                        <p class="font-kalam font-bold text-2xl text-ink">Mural Vazio!</p>
+                        <p class="font-patrick text-lg text-ink/70">Nenhum projeto postado no momento.</p>
+                    </div>`;
+                return;
+            }
+
+            todasDemandas.forEach((d, index) => {
+                const isAberto = d.status === 'Aberto';
+                const rot = index % 2 === 0 ? 'rotate-1' : '-rotate-1';
+                const bgColor = isAberto ? 'bg-postit' : 'bg-muted opacity-80';
+                
+                let buttonHTML = '';
+                if(isAberto) {
+                    buttonHTML = `
+                        <button onclick="window.assumirProjeto(${d.id})" class="mt-5 w-full bg-white border-[3px] border-ink text-ink font-kalam font-bold text-xl h-14 rounded-wobbly shadow-hard transition-all hover:bg-marker hover:text-white hover:shadow-hard-hover hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] flex items-center justify-center gap-2">
+                            <i data-feather="edit-2" class="w-5 h-5"></i>
+                            Assumir (+20h)
+                        </button>
+                    `;
+                } else {
+                    buttonHTML = `
+                        <div class="mt-5 w-full bg-paper border-[3px] border-ink/40 text-ink/60 font-kalam font-bold text-xl h-14 rounded-wobbly flex items-center justify-center gap-2 border-dashed">
+                            <i data-feather="check" class="w-5 h-5"></i>
+                            Em Andamento
+                        </div>
+                    `;
+                }
+
+                const card = `
+                    <div class="${bgColor} p-6 rounded-wobbly-md border-[3px] border-ink shadow-hard relative ${rot} transition-transform hover:scale-[1.02]">
+                        <div class="tape tape-alt"></div>
+                        
+                        <div class="flex items-center gap-4 mb-4 mt-2">
+                            <div class="w-12 h-12 rounded-full border-2 border-ink bg-white flex items-center justify-center shadow-hard-sm">
+                                <i data-feather="map-pin" class="w-5 h-5 text-ink"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-kalam font-bold text-ink text-2xl leading-tight">${d.negocio}</h4>
+                                <span class="text-ink/70 font-patrick text-sm font-bold uppercase tracking-wider block mt-1">
+                                    Mural Local
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-4 rounded-wobbly border-2 border-ink">
+                            <p class="font-patrick text-lg text-ink leading-snug">"${d.pedido}"</p>
+                        </div>
+                        
+                        ${buttonHTML}
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+
+        // Lógica do formulário
+        document.getElementById('form-pedido').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const negocioInput = document.getElementById('negocio');
+            const pedidoInput = document.getElementById('pedido');
+
+            demandas.push({
+                id: Date.now(),
+                negocio: negocioInput.value,
+                pedido: pedidoInput.value,
+                status: 'Aberto'
+            });
+            
+            negocioInput.value = '';
+            pedidoInput.value = '';
+
+            renderTelas();
+            showToast("Anotado! Pedido no mural.");
+        });
+
+        // Lógica de assumir o projeto
+        window.assumirProjeto = function(id) {
+            const demandaIndex = demandas.findIndex(d => d.id === id);
+            if(demandaIndex !== -1) {
+                demandas[demandaIndex].status = 'Em Andamento';
+                renderTelas();
+                dispararConfetes();
+                showToast("Conexão feita! Mandou bem.");
+            }
+        };
+
+        // UI Feedback
+        let toastTimeout;
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = message;
+            
+            if(toastTimeout) clearTimeout(toastTimeout);
+            
+            toast.classList.remove('toast-exit');
+            toast.classList.add('toast-enter');
+            
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-exit');
+            }, 3000);
+        }
+
+        // Efeito visual festivo
+        function dispararConfetes() {
+            var duration = 2000;
+            var end = Date.now() + duration;
+
+            // Cores do design Hand-Drawn: Vermelho canetão, Azul caneta, Amarelo Post-it
+            var colors = ['#ff4d4d', '#2d5da1', '#fff9c4', '#2d2d2d'];
+
+            (function frame() {
+                confetti({ particleCount: 4, angle: 60, spread: 55, origin: { x: 0, y: 0.8 }, colors: colors, shapes: ['square'] });
+                confetti({ particleCount: 4, angle: 120, spread: 55, origin: { x: 1, y: 0.8 }, colors: colors, shapes: ['square'] });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+    </script>
+</body>
+</html>
